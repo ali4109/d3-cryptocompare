@@ -28,13 +28,12 @@
 <script src="https://d3js.org/d3-selection-multi.v1.min.js"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 <script>
-
+    var detaultExchange = ["Bitfinex", "Binance", "HuobiPro", "Coinbase", "Poloniex", "CoinBene", "OKEX", "CoinEx", "Kraken", "Bitstamp"];
     var chartDiv = document.getElementById("chart");
-    var margin = { top: 20, right: 80, bottom: 100, left: 50 },
+    var margin = { top: 20, right: 300, bottom: 150, left: 50 },
         width = chartDiv.clientWidth - margin.left - margin.right,
         height = chartDiv.clientHeight - margin.top - margin.bottom;
 
-    console.log(chartDiv.clientWidth, chartDiv.clientHeight)
     var svg = d3.select('#chart').append("svg")
         .attr("width", chartDiv.clientWidth)
         .attr("height", chartDiv.clientHeight)
@@ -43,17 +42,17 @@
 
     g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")")
     //g = svg.append("g")
-
+    let finalIndex = 0;
     var x = d3.scaleTime().range([0, width]),
         y = d3.scaleLinear().range([height, 0]),
-        z = d3.scaleOrdinal(d3.schemeCategory10);
+        z = d3.scaleOrdinal(d3.schemeCategory20);
 
     var line = d3.line()
         .curve(d3.curveCardinal)
         .x(function (d) { return x(d.time); })
         .y(function (d) { return y(d.volume); });
 
-    function findYDomain(data) { 
+    function findYDomain(data) {
         var maxYValues = data.map(function (d) {
             if (d.visible) {
                 return d3.max(d.values, function (value) { // Return max rating value
@@ -74,15 +73,19 @@
     axios.get("/exchange")
         .then((response) => {
             let exchanges = response.data
-            exchanges = exchanges.map(function (item) {
-                item.visible = true;
+            exchanges = exchanges.map(function (item, index) {
+                if (detaultExchange.indexOf(item.id) > -1) {
+                    item.visible = true;
+                } else {
+                    item.visible = false;
+                }
                 return item;
             })
             x.domain([
                 d3.min(exchanges, function (c) { return d3.min(c.values, function (d) { return d.time; }); }),
                 d3.max(exchanges, function (c) { return d3.max(c.values, function (d) { return d.time; }); })
             ]);
-            
+
             let ydomain = findYDomain(exchanges)
             y.domain(ydomain);
 
@@ -110,7 +113,13 @@
             exchange.append("path")
                 .attr("class", "line")
                 .attr("id", function (d) { return d.id })
-                .attr("d", function (d) { return line(d.values); })
+                .attr("d", function (d) {
+                    if (d.visible) {
+                        return line(d.values);
+                    } else {
+                        return null;
+                    }
+                })
                 .style("stroke", function (d) { return z(d.id); })
                 .on("mouseover", (d) => {
                     //console.log(d.id);
@@ -123,9 +132,11 @@
 
             legend.append("rect")
                 .attrs({
-                    x: width,
+                    x: function (d, i) {
+                        return width + Math.floor(i / 40) * 80 + 10
+                    },
                     y: function (d, i) {
-                        return 5 + 15 * i;
+                        return 5 + 15 * (i % 40);
                     },
                     width: 10,
                     height: 10,
@@ -148,30 +159,70 @@
                         d3.select("#" + d.id).attr("d", function (d) { return line(d.values); })
                     }
                     y.domain(findYDomain(exchanges));
+
                     svg.select("g.axis.axis--y")
                         .transition()
                         .call(d3.axisLeft(y).ticks(10, "s"));
-                    
+
                     exchange.selectAll("path")
                         .transition()
-                        .attr("d", function (d) { 
+                        .attr("d", function (d) {
                             if (d.visible) {
                                 return line(d.values);
                             } else {
                                 return null;
                             }
                         });
-                    
+
                     circle.transition()
                         .attr("cx", null)
                         .attr("cy", null)
-                })
+
+                    // visibleLabelData = []
+                    // exchanges.map(function (d) {
+                    //     if (d.visible) {
+                    //         visibleLabelData.push({ id: d.id, value: d.values[finalIndex], visible: d.visible });
+                    //     }
+                    // });
+                    
+                    // svg.selectAll(".label").remove()
+                    // var label = g.selectAll(".label")
+                    //     .data(visibleLabelData)
+                    //     .enter().append("g")
+                    //     .attr("class", "label")
+                        
+                    // label.append("text")
+                    //     .data(visibleLabelData)
+                    //     .attr("x", function (d, i) {
+                    //         return (i % 5) * 150 + margin.left
+                    //     })
+                    //     .attr("y", function (d, i) {
+                    //         return height + margin.bottom - 100 + Math.floor(i / 5) * 20
+                    //     })
+                    //     .style("font", "10px sans-serif")
+                    //     .style("fill", function (d) { return z(d.id) })
+                    //     .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume); });
+                    
+                    // svg.on("mousemove", function () {
+                    //     console.log("move")
+                    //     label.select("text")
+                    //         .data(visibleLabelData)
+                    //         .transition()
+                    //         .duration(1000)
+                    //         .text(function (d) {
+                    //             return d.id + ": " + d3.format(",")(d.value.volume)
+                    //         })
+                    // })
+
+                });
 
             legend.append("text")
                 //.datum(function (d) { return d.id })
-                .attr("x", width + 15)
+                .attr("x", function (d, i) {
+                    return width + Math.floor(i / 40) * 80 + 25
+                })
                 .attr("y", function (d, i) {
-                    return 15 + 15 * i;
+                    return 15 + 15 * (i % 40);
                 })
                 .style("font", "10px sans-serif")
                 .text(function (d) { return d.id; });
@@ -181,18 +232,38 @@
                 .attr("cy", null)
                 .attr("r", 3)
                 .attr("fill", "red");
+            
+            var circleLabel = exchange.append("circle")
+                .attr("x", null)
+                .attr("y", null)
+                .text("hello");
+
+            var visibleLabelData = []
+            exchanges.map(function (d) {
+                //if (d.visible) {
+                    visibleLabelData.push({ id: d.id, value: d.values[0], visible: d.visible });
+                //}
+            });
 
             var label = g.selectAll(".label")
-                .data(exchanges)
+                .data(visibleLabelData)
                 .enter().append("g")
                 .attr("class", "label")
 
             label.append("text")
-                .datum(function (d) { return { id: d.id, value: d.values[0] } })
-                .attr("x", function (d, i) { return i * 150 + margin.left })
-                .attr("y", height + margin.bottom - 50)
+                .datum(function (d) { return d; })
+                .attr("x", function (d, i) {
+                    return (i % 8) * 150 + margin.left
+                })
+                .attr("y", function (d, i) {
+                    return height + margin.bottom - 100 + Math.floor(i / 8) * 20
+                })
                 .style("font", "10px sans-serif")
-                .style("fill", function (d) { return z(d.id) })
+                .style("fill", function (d) { 
+                        
+                        return z(d.id) 
+                        
+                })
                 .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume); });
 
             var bisectDate = d3.bisector(function (d) { return d.time; }).left
@@ -203,10 +274,13 @@
                     data = exchanges[0].values,
                     i = Math.min(bisectDate(data, x0, 1), 30),
                     d0 = data[i - 1],
-                    d1 = data[i],
-                    finalIndex = x0 - d0.time > d1.time - x0 ? i : i - 1;
-                let fullData = exchanges.map(function (item) {
-                    return { id: item.id, value: item.values[finalIndex] }
+                    d1 = data[i]
+                finalIndex = x0 - d0.time > d1.time - x0 ? i : i - 1;
+                visibleLabelData = []
+                exchanges.map(function (d) {
+                    //if (d.visible) {
+                        visibleLabelData.push({ id: d.id, value: d.values[finalIndex], visible: d.visible })
+                    //}
                 })
 
                 circle
@@ -226,13 +300,33 @@
                         }
                     })
                     .attr("fill", function (d) { return z(d.id) });
+                
+                circleLabel
+                    .attr("x", function (d, i) {
+                        if (d.visible) {
+                            return x(d.values[finalIndex].time)
+                        } else {
+                            return null;
+                        }
+                    })
+                    .attr("y", function (d, i) {
+                        if (d.visible) {
+                            return y(d.values[finalIndex].volume)
+                        } else {
+                            return null;
+                        }
+                    })
+                    .text("hello")
 
                 label.select("text")
-                    .data(fullData)
-                    .transition()
-                    .duration(1000)
-                    .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume) })
-            })
+                    .data(visibleLabelData)
+                    .style("fill", function (d) { 
+                        return z(d.id) 
+                    })
+                    .text(function (d) {
+                        return d.id + ": " + d3.format(",")(d.value.volume)
+                    })
+            });
         });
 
 </script>
