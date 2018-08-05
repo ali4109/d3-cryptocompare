@@ -21,7 +21,7 @@
 <script>
 
     var svg = d3.select("svg"),
-        margin = { top: 20, right: 80, bottom: 30, left: 50 },
+        margin = { top: 20, right: 80, bottom: 50, left: 50 },
         width = svg.attr("width") - margin.left - margin.right,
         height = svg.attr("height") - margin.top - margin.bottom,
         g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
@@ -31,17 +31,13 @@
         z = d3.scaleOrdinal(d3.schemeCategory10);
 
     var line = d3.line()
-        .curve(d3.curveBasis)
+        .curve(d3.curveCardinal)
         .x(function (d) { return x(d.time); })
         .y(function (d) { return y(d.volume); });
 
     axios.get("/exchange")
         .then((response) => {
-            console.log(response)
             let exchanges = response.data
-            //let exchanges = [{ "id": "Coinbase", "values": data }]
-            //x.domain(d3.extent(exchanges, function (d) { return d.time; }));
-            //y.domain(d3.extent(exchanges, function (d) { return d.volume; }));
 
             x.domain([
                 d3.min(exchanges, function (c) { return d3.min(c.values, function (d) { return d.time; }); }),
@@ -79,7 +75,7 @@
                 .attr("d", function (d) { return line(d.values); })
                 .style("stroke", function (d) { return z(d.id); })
                 .on("mouseover", (d) => {
-                    console.log(d.id);
+                    //console.log(d.id);
                 })
 
             var legend = g.selectAll(".legend")
@@ -97,7 +93,6 @@
                     width: 10, 
                     height: 10, 
                     fill: function(d) {
-                    console.log(d)
                     return z(d)
                 } })
             
@@ -109,8 +104,53 @@
                     })
                 .style("font", "10px sans-serif")
                 .text(function (d) { return d; });
+            
+            var circle = exchange.append("circle")
+                .attr("cx", 100)
+                .attr("cy", 350)
+                .attr("r", 3)
+                .attr("fill", "red");
 
+            var label = g.selectAll(".label")
+                .data(exchanges)
+                .enter().append("g")
+                .attr("class", "label")
+            
+            label.append("text")
+                .datum(function (d) { return {id: d.id, value: d.values[0] } })
+                .attr("x", function(d, i) { return i * 150 + margin.left})
+                .attr("y", height + margin.bottom - 10)
+                .style("font", "10px sans-serif")
+                .style("fill", function(d) { return z(d.id)})
+                .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume); });
+            
+            var bisectDate = d3.bisector(function(d) { return d.time; }).left
 
+            svg.on("mousemove", function() {
+                let mouseX = d3.event.pageX - margin.left;
+                //console.log(x.invert(mouseX));
+                var x0 = x.invert(mouseX),
+                data = exchanges[0].values,
+                i = Math.min(bisectDate(data, x0, 1), 30),
+                d0 = data[i - 1],
+                d1 = data[i],
+                finalIndex = x0 - d0.time > d1.time - x0 ? i : i - 1;
+                let fullData = exchanges.map(function(item){
+                    return {id: item.id, value: item.values[finalIndex]}
+                })
+                
+                circle
+                    .attr("opacity", 1)
+                    .attr("cx", function(d) { return x(d.values[finalIndex].time)})
+                    .attr("cy", function(d) { return y(d.values[finalIndex].volume)})
+                    .attr("fill", function(d) { return z(d.id)});
+                
+                label.select("text")
+                    .data(fullData)
+                    .transition()
+                    .duration(1000)
+                    .text(function(d) { return d.id + ": " + d3.format(",")(d.value.volume)})
+            })
         });
 
 </script>
