@@ -122,7 +122,6 @@
                 .attr("class", "legend")
 
             legend.append("rect")
-                //.datum(function (d) { return d.id })
                 .attrs({
                     x: width,
                     y: function (d, i) {
@@ -143,15 +142,12 @@
                     if (d.visible === true) {
                         d.visible = false;
                         d3.select(this).attr("fill", "#F1F1F2")
-                        //d3.select("#" + d.id).attr("d", null)
-                        
                     } else {
                         d.visible = true;
                         d3.select(this).attr("fill", z(d.id))
                         d3.select("#" + d.id).attr("d", function (d) { return line(d.values); })
                     }
                     y.domain(findYDomain(exchanges));
-                    console.log(findYDomain(exchanges))
                     svg.select("g.axis.axis--y")
                         .transition()
                         .call(d3.axisLeft(y).ticks(10, "s"));
@@ -162,26 +158,13 @@
                             if (d.visible) {
                                 return line(d.values);
                             } else {
-                                console.log(d.id, "not visible")
                                 return null;
                             }
                         });
                     
-                    // circle.transition()
-                    //     .attr("cx", function (d) {
-                    //     if (d.visible) {
-                    //         return x(d.values[finalIndex].time)
-                    //     } else {
-                    //         return null;
-                    //     }
-                    // })
-                    // .attr("cy", function (d) {
-                    //     if (d.visible) {
-                    //         return y(d.values[finalIndex].volume)
-                    //     } else {
-                    //         return null;
-                    //     }
-                    // })
+                    circle.transition()
+                        .attr("cx", null)
+                        .attr("cy", null)
                 })
 
             legend.append("text")
@@ -194,8 +177,8 @@
                 .text(function (d) { return d.id; });
 
             var circle = exchange.append("circle")
-                .attr("cx", 100)
-                .attr("cy", 350)
+                .attr("cx", null)
+                .attr("cy", null)
                 .attr("r", 3)
                 .attr("fill", "red");
 
