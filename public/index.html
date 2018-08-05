@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+    .line {
+        fill: none;
+        stroke: steelblue;
+        stroke-width: 2px;
+    }
+
+    .line:hover {
+        fill: none;
+        stroke: steelblue;
+        stroke-width: 4px;
+    }
+
+</style>
+<svg width="960" height="500"></svg>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-selection-multi.v1.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+
+    var svg = d3.select("svg"),
+        margin = { top: 20, right: 80, bottom: 30, left: 50 },
+        width = svg.attr("width") - margin.left - margin.right,
+        height = svg.attr("height") - margin.top - margin.bottom,
+        g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    var x = d3.scaleTime().range([0, width]),
+        y = d3.scaleLinear().range([height, 0]),
+        z = d3.scaleOrdinal(d3.schemeCategory10);
+
+    var line = d3.line()
+        .curve(d3.curveBasis)
+        .x(function (d) { return x(d.time); })
+        .y(function (d) { return y(d.volume); });
+
+    axios.get("/exchange")
+        .then((response) => {
+            console.log(response)
+            let exchanges = response.data
+            //let exchanges = [{ "id": "Coinbase", "values": data }]
+            //x.domain(d3.extent(exchanges, function (d) { return d.time; }));
+            //y.domain(d3.extent(exchanges, function (d) { return d.volume; }));
+
+            x.domain([
+                d3.min(exchanges, function (c) { return d3.min(c.values, function (d) { return d.time; }); }),
+                d3.max(exchanges, function (c) { return d3.max(c.values, function (d) { return d.time; }); })
+            ]);
+
+            y.domain([
+                d3.min(exchanges, function (c) { return d3.min(c.values, function (d) { return d.volume; }); }),
+                d3.max(exchanges, function (c) { return d3.max(c.values, function (d) { return d.volume; }); })
+            ]);
+
+            g.append("g")
+                .attr("class", "axis axis--x")
+                .attr("transform", "translate(0," + height + ")")
+                .attr("fill", "#000")
+                .call(d3.axisBottom(x).tickFormat(d3.timeFormat("%m/%d")));
+
+            g.append("g")
+                .attr("class", "axis axis--y")
+                .call(d3.axisLeft(y).ticks(10, "s"))
+                .append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 6)
+                .attr("dy", "0.71em")
+                .attr("fill", "#000")
+                .text("Volume, USD");
+
+            var exchange = g.selectAll(".exchange")
+                .data(exchanges)
+                .enter().append("g")
+                .attr("class", "exchange");
+
+            exchange.append("path")
+                .attr("class", "line")
+                .attr("d", function (d) { return line(d.values); })
+                .style("stroke", function (d) { return z(d.id); })
+                .on("mouseover", (d) => {
+                    console.log(d.id);
+                })
+
+            var legend = g.selectAll(".legend")
+                .data(exchanges)
+                .enter().append("g")
+                .attr("class", "legend")
+            
+            legend.append("rect")
+                .datum(function (d) { return d.id })
+                .attrs({ 
+                    x: width, 
+                    y: function(d, i) {
+                        return 5 + 15 * i;
+                    }, 
+                    width: 10, 
+                    height: 10, 
+                    fill: function(d) {
+                    console.log(d)
+                    return z(d)
+                } })
+            
+            legend.append("text")
+                .datum(function (d) { return d.id })
+                .attr("x", width + 15)
+                .attr("y", function(d, i) {
+                        return 15 + 15 * i;
+                    })
+                .style("font", "10px sans-serif")
+                .text(function (d) { return d; });
+
+
+        });
+
+</script>
