@@ -7,24 +7,42 @@
         stroke-width: 2px;
     }
 
+    #chart {
+        width: 100vw;
+        height: 100vh;
+
+    }
+
+    .legend {
+        cursor: pointer;
+    }
+
     .line:hover {
         fill: none;
         stroke: steelblue;
         stroke-width: 4px;
     }
-
 </style>
-<svg width="960" height="500"></svg>
+<div id="chart"></div>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="https://d3js.org/d3-selection-multi.v1.min.js"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 <script>
 
-    var svg = d3.select("svg"),
-        margin = { top: 20, right: 80, bottom: 50, left: 50 },
-        width = svg.attr("width") - margin.left - margin.right,
-        height = svg.attr("height") - margin.top - margin.bottom,
-        g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    var chartDiv = document.getElementById("chart");
+    var margin = { top: 20, right: 80, bottom: 100, left: 50 },
+        width = chartDiv.clientWidth - margin.left - margin.right,
+        height = chartDiv.clientHeight - margin.top - margin.bottom;
+
+    console.log(chartDiv.clientWidth, chartDiv.clientHeight)
+    var svg = d3.select('#chart').append("svg")
+        .attr("width", chartDiv.clientWidth)
+        .attr("height", chartDiv.clientHeight)
+    //.attr("preserveAspectRatio", "xMinYMin meet")
+    //.attr("viewBox", "0 0 "  + width + " " + height)
+
+    g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+    //g = svg.append("g")
 
     var x = d3.scaleTime().range([0, width]),
         y = d3.scaleLinear().range([height, 0]),
@@ -35,19 +53,38 @@
         .x(function (d) { return x(d.time); })
         .y(function (d) { return y(d.volume); });
 
+    function findYDomain(data) { 
+        var maxYValues = data.map(function (d) {
+            if (d.visible) {
+                return d3.max(d.values, function (value) { // Return max rating value
+                    return value.volume;
+                })
+            }
+        });
+        var minYValues = data.map(function (d) {
+            if (d.visible) {
+                return d3.min(d.values, function (value) { // Return max rating value
+                    return value.volume;
+                })
+            }
+        });
+        return [d3.min(minYValues), d3.max(maxYValues)];
+    }
+
     axios.get("/exchange")
         .then((response) => {
             let exchanges = response.data
-
+            exchanges = exchanges.map(function (item) {
+                item.visible = true;
+                return item;
+            })
             x.domain([
                 d3.min(exchanges, function (c) { return d3.min(c.values, function (d) { return d.time; }); }),
                 d3.max(exchanges, function (c) { return d3.max(c.values, function (d) { return d.time; }); })
             ]);
-
-            y.domain([
-                d3.min(exchanges, function (c) { return d3.min(c.values, function (d) { return d.volume; }); }),
-                d3.max(exchanges, function (c) { return d3.max(c.values, function (d) { return d.volume; }); })
-            ]);
+            
+            let ydomain = findYDomain(exchanges)
+            y.domain(ydomain);
 
             g.append("g")
                 .attr("class", "axis axis--x")
@@ -72,6 +109,7 @@
 
             exchange.append("path")
                 .attr("class", "line")
+                .attr("id", function (d) { return d.id })
                 .attr("d", function (d) { return line(d.values); })
                 .style("stroke", function (d) { return z(d.id); })
                 .on("mouseover", (d) => {
@@ -82,29 +120,79 @@
                 .data(exchanges)
                 .enter().append("g")
                 .attr("class", "legend")
-            
+
             legend.append("rect")
-                .datum(function (d) { return d.id })
-                .attrs({ 
-                    x: width, 
-                    y: function(d, i) {
+                //.datum(function (d) { return d.id })
+                .attrs({
+                    x: width,
+                    y: function (d, i) {
                         return 5 + 15 * i;
-                    }, 
-                    width: 10, 
-                    height: 10, 
-                    fill: function(d) {
-                    return z(d)
-                } })
-            
+                    },
+                    width: 10,
+                    height: 10,
+                    fill: function (d) {
+                        if (d.visible === true) {
+                            return z(d.id)
+                        } else {
+                            return "#F1F1F2";
+                        }
+
+                    }
+                })
+                .on("click", function (d) {
+                    if (d.visible === true) {
+                        d.visible = false;
+                        d3.select(this).attr("fill", "#F1F1F2")
+                        //d3.select("#" + d.id).attr("d", null)
+                        
+                    } else {
+                        d.visible = true;
+                        d3.select(this).attr("fill", z(d.id))
+                        d3.select("#" + d.id).attr("d", function (d) { return line(d.values); })
+                    }
+                    y.domain(findYDomain(exchanges));
+                    console.log(findYDomain(exchanges))
+                    svg.select("g.axis.axis--y")
+                        .transition()
+                        .call(d3.axisLeft(y).ticks(10, "s"));
+                    
+                    exchange.selectAll("path")
+                        .transition()
+                        .attr("d", function (d) { 
+                            if (d.visible) {
+                                return line(d.values);
+                            } else {
+                                console.log(d.id, "not visible")
+                                return null;
+                            }
+                        });
+                    
+                    // circle.transition()
+                    //     .attr("cx", function (d) {
+                    //     if (d.visible) {
+                    //         return x(d.values[finalIndex].time)
+                    //     } else {
+                    //         return null;
+                    //     }
+                    // })
+                    // .attr("cy", function (d) {
+                    //     if (d.visible) {
+                    //         return y(d.values[finalIndex].volume)
+                    //     } else {
+                    //         return null;
+                    //     }
+                    // })
+                })
+
             legend.append("text")
-                .datum(function (d) { return d.id })
+                //.datum(function (d) { return d.id })
                 .attr("x", width + 15)
-                .attr("y", function(d, i) {
-                        return 15 + 15 * i;
-                    })
+                .attr("y", function (d, i) {
+                    return 15 + 15 * i;
+                })
                 .style("font", "10px sans-serif")
-                .text(function (d) { return d; });
-            
+                .text(function (d) { return d.id; });
+
             var circle = exchange.append("circle")
                 .attr("cx", 100)
                 .attr("cy", 350)
@@ -115,41 +203,52 @@
                 .data(exchanges)
                 .enter().append("g")
                 .attr("class", "label")
-            
-            label.append("text")
-                .datum(function (d) { return {id: d.id, value: d.values[0] } })
-                .attr("x", function(d, i) { return i * 150 + margin.left})
-                .attr("y", height + margin.bottom - 10)
-                .style("font", "10px sans-serif")
-                .style("fill", function(d) { return z(d.id)})
-                .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume); });
-            
-            var bisectDate = d3.bisector(function(d) { return d.time; }).left
 
-            svg.on("mousemove", function() {
+            label.append("text")
+                .datum(function (d) { return { id: d.id, value: d.values[0] } })
+                .attr("x", function (d, i) { return i * 150 + margin.left })
+                .attr("y", height + margin.bottom - 50)
+                .style("font", "10px sans-serif")
+                .style("fill", function (d) { return z(d.id) })
+                .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume); });
+
+            var bisectDate = d3.bisector(function (d) { return d.time; }).left
+
+            svg.on("mousemove", function () {
                 let mouseX = d3.event.pageX - margin.left;
-                //console.log(x.invert(mouseX));
                 var x0 = x.invert(mouseX),
-                data = exchanges[0].values,
-                i = Math.min(bisectDate(data, x0, 1), 30),
-                d0 = data[i - 1],
-                d1 = data[i],
-                finalIndex = x0 - d0.time > d1.time - x0 ? i : i - 1;
-                let fullData = exchanges.map(function(item){
-                    return {id: item.id, value: item.values[finalIndex]}
+                    data = exchanges[0].values,
+                    i = Math.min(bisectDate(data, x0, 1), 30),
+                    d0 = data[i - 1],
+                    d1 = data[i],
+                    finalIndex = x0 - d0.time > d1.time - x0 ? i : i - 1;
+                let fullData = exchanges.map(function (item) {
+                    return { id: item.id, value: item.values[finalIndex] }
                 })
-                
+
                 circle
                     .attr("opacity", 1)
-                    .attr("cx", function(d) { return x(d.values[finalIndex].time)})
-                    .attr("cy", function(d) { return y(d.values[finalIndex].volume)})
-                    .attr("fill", function(d) { return z(d.id)});
-                
+                    .attr("cx", function (d) {
+                        if (d.visible) {
+                            return x(d.values[finalIndex].time)
+                        } else {
+                            return null;
+                        }
+                    })
+                    .attr("cy", function (d) {
+                        if (d.visible) {
+                            return y(d.values[finalIndex].volume)
+                        } else {
+                            return null;
+                        }
+                    })
+                    .attr("fill", function (d) { return z(d.id) });
+
                 label.select("text")
                     .data(fullData)
                     .transition()
                     .duration(1000)
-                    .text(function(d) { return d.id + ": " + d3.format(",")(d.value.volume)})
+                    .text(function (d) { return d.id + ": " + d3.format(",")(d.value.volume) })
             })
         });
 
